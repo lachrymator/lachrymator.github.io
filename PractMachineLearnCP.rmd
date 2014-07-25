@@ -1,22 +1,27 @@
 
 # Practical Machine Learning Course Project  
   
+Written by Jeff W (lachrymator) on July 24, 2014  
+  
+  
 ## Synopsis  
   
   
 Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
   
-The goal of this project is to develop a machine learning algorthm to predict the manner in which subjects did the exercise. (classe variable), using data from the dataset.
-
+The goal of this project is to develop a machine learning algorthm to predict the manner in which subjects did the exercise. (classe variable), using data from the dataset.  
+    
+    
 ## Getting the data
 
 Data is downloaded from the following URLs, if necessary
 
-```{r, message=TRUE,warning=FALSE}
+```{r, message=FALSE,warning=FALSE}
+library(caret);library(randomForest);options(width = 300)
+
 setwd("C:/Coursera/PractMachineLearn")
 trainfileurl<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
 testfileurl<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
-library(caret);library(randomForest); options(width = 300)
 if(!file.exists("train.csv")) download.file(trainfileurl, "train.csv")
 if(!file.exists("test.csv")) download.file(testfileurl, "test.csv")
 trainset <- read.csv("train.csv", na.strings=c("NA",""), stringsAsFactors=F)
@@ -79,6 +84,8 @@ plot1 <- featurePlot(x=trainset[,nearZeroVar(trainset, saveMetrics = T)$percentU
             auto.key=list(columns=3))
 plot1
 
+
+
 ```
 **Figure 1** The most variable features plotted against classe
   
@@ -104,7 +111,7 @@ gbmModel <- train(classe~., data=trainset,
 
 })
 
-gbmModel
+gbmModel; gbmModel$results
 ```
 
 The generalized boosting model therefore had a 5-fold cross-validated error estimate of **`r round(gbmModel$results[nrow(gbmModel$results),"Accuracy"]*100,1)`**% Accuracy.
@@ -119,7 +126,8 @@ rfModel <- train(classe~., data=trainset,
      
 })
 
-rfModel
+rfModel; rfModel$results
+
 ```
 
 
@@ -171,16 +179,15 @@ rfModel$finalModel
 
 ```{r}
 answers<-data.frame(cbind(testset$problem_id, 
-                          as.character(predict(rfModel$finalModel, testset)),
-                          as.character(predict(gbmModel, testset))))
+                          as.character(predict(rfModel, testset[,-53])),
+                          as.character(predict(gbmModel, testset[,-53]))))
 names(answers)<- c("problem_id", "predicted-RF","predicted-GBM")
 answers
 ````
-
-
+  
 In the end, both models predicted the same answer.
 The answers were then split into individual files for submission
-
+  
 ```{r}
 pml_write_files = function(x){
   n = length(x)

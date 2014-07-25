@@ -17,15 +17,20 @@ The goal of this project is to develop a machine learning algorthm to predict th
 Data is downloaded from the following URLs, if necessary
 
 ```{r, message=FALSE,warning=FALSE}
-library(caret);library(randomForest);options(width = 300)
+library(caret);library(randomForest);library(doParallel);options(width = 400)
 
 setwd("C:/Coursera/PractMachineLearn")
 trainfileurl<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
 testfileurl<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
-if(!file.exists("train.csv")) download.file(trainfileurl, "train.csv")
-if(!file.exists("test.csv")) download.file(testfileurl, "test.csv")
-trainset <- read.csv("train.csv", na.strings=c("NA",""), stringsAsFactors=F)
-testset <- read.csv("test.csv", na.strings=c("NA",""), stringsAsFactors=F)
+if(!file.exists("data/train.csv")) download.file(trainfileurl, "data/train.csv")
+if(!file.exists("data/test.csv")) download.file(testfileurl, "data/test.csv")
+trainset <- read.csv("data/train.csv", na.strings=c("NA",""), stringsAsFactors=F)
+testset <- read.csv("data/test.csv", na.strings=c("NA",""), stringsAsFactors=F)
+
+### Code for Parallel Processing in Windows
+cl<-makeCluster(detectCores())
+registerDoParallel(cl)
+
 ```
 
 ## Cleaning the data  
@@ -87,6 +92,8 @@ plot1
 
 
 ```
+  
+  
 **Figure 1** The most variable features plotted against classe
   
 From eyeballing it, most features do not seem to be individually strong predictors of classe. Let the algorithms decide.  

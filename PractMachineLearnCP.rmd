@@ -1,0 +1,200 @@
+
+# Practical Machine Learning Course Project  
+  
+## Synopsis  
+  
+  
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+  
+The goal of this project is to develop a machine learning algorthm to predict the manner in which subjects did the exercise. (classe variable), using data from the dataset.
+
+## Getting the data
+
+Data is downloaded from the following URLs, if necessary
+
+```{r, message=TRUE,warning=FALSE}
+setwd("C:/Coursera/PractMachineLearn")
+trainfileurl<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testfileurl<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+library(caret);library(randomForest); options(width = 300)
+if(!file.exists("train.csv")) download.file(trainfileurl, "train.csv")
+if(!file.exists("test.csv")) download.file(testfileurl, "test.csv")
+trainset <- read.csv("train.csv", na.strings=c("NA",""), stringsAsFactors=F)
+testset <- read.csv("test.csv", na.strings=c("NA",""), stringsAsFactors=F)
+```
+
+## Cleaning the data  
+  
+The data has is relatively large having `r nrow(trainset)' rows and 'r ncol(trainset)' columns.  
+The following code looks at the number of NA values in the training set and testset.
+
+```{r, message=TRUE,warning=FALSE}
+naframe <-data.frame(names(trainset))
+naframe$MinVal <- apply(trainset, 2, range, na.rm=T)[1,]
+naframe$MaxVal <- apply(trainset, 2, range, na.rm=T)[2,]
+naframe$sum_na_trainset <- colSums(is.na(trainset))
+naframe$sum_na_testset <- colSums(is.na(testset))
+naframe
+```
+  
+We can see that both the training and test set have NA values in the same places, so we can eliminate those features without losing any predictive data.  
+  
+Also, we are uninterested in columns 1 to 7 for the purpose of prediction. These will be removed. The remainder of the columns are forced into numeric vectors.
+
+```{r, message=TRUE,warning=FALSE}
+for(i in 7:159) {
+     trainset[,i]<-as.numeric(trainset[,i])
+     testset[,i]<-as.numeric(testset[,i])
+}
+trainset[,160]<-as.factor(trainset[,160])
+testset[,160]<-as.factor(testset[,160])
+colindex<- colSums(is.na(trainset))==0
+colindex[1:7]=FALSE
+trainset<-trainset[,colindex]
+testset<-testset[,colindex]
+
+str(trainset)
+```
+
+## Building the algorithm
+
+
+To get a better sense of what descriptors are important for prediction, we can look at a plot of all the predictors that have larger variances. (percentUnique)
+
+```{r, message=TRUE,warning=FALSE}
+nearZeroVar(trainset[,1:52], saveMetrics = T)
+```
+
+The features that have over 10 percentUnique will then be plotted to see how strongly they predict classes.
+
+```{r, message=TRUE,warning=FALSE, dpi=300, out.width="600px"}
+plot1 <- featurePlot(x=trainset[,nearZeroVar(trainset, saveMetrics = T)$percentUnique > 10],
+            y=trainset$classe,
+            plot = "density",
+            scales = list(x = list(relation="free"),
+                          y = list(relation="free")),
+            adjust = 1.5,
+            pch = "|",
+            layout = c(3,3),
+            auto.key=list(columns=3))
+plot1
+
+```
+**Figure 1** The most variable features plotted against classe
+  
+From eyeballing it, most features do not seem to be individually strong predictors of classe. Let the algorithms decide.  
+  
+We will look at two algorithms - Gradient Boosting and Random Forests to predict using
+5-fold cross-validation. The caret package will be used for the boosted regression modelling, and randomForest
+will be used for the random forest modelling.
+
+```{r, message=FALSE,warning=FALSE}
+seed = 1  #Setting the seed for reproducibility
+set.seed(seed)
+
+system.time({   
+gbmModel <- train(classe~., data=trainset, 
+                method = "gbm", 
+                verbose = F,
+                trControl = trainControl(method = "cv",
+                                         number = 5,
+                                         repeats = 5))
+
+
+
+})
+
+gbmModel
+```
+
+The generalized boosting model therefore had a 5-fold cross-validated error estimate of **`r round(gbmModel$results[nrow(gbmModel$results),"Accuracy"]*100,1)`**% Accuracy.
+
+```{r, message=FALSE,warning=FALSE}
+system.time({
+rfModel <- train(classe~., data=trainset, 
+                method = "rf",
+                trControl = trainControl(method = "cv",
+                                         number = 5,
+                                         repeats = 5))
+     
+})
+
+rfModel
+```
+
+
+The random forest model therefore had a 5-fold cross-validated error estimate of **`r round(rfModel$results[nrow(rfModel$results),"Accuracy"]*100,1)`**% Accuracy.  
+  
+Therefore, we will use the random forest model to predict the test set. The importance of variables for the model:
+
+```{r}
+varImpPlot(rfModel$finalModel)
+```
+
+**Figure 2** Variable importance for the random Forest model
+
+We can re-create the plot from before and see how the variables decided by random Forest predict the classes.
+
+
+```{r}
+varimp <- data.frame(importance(rfModel$finalModel))
+varimp$feats <- rownames(varimp)
+varimp <- varimp[order(varimp$MeanDecreaseGini, decreasing=T),]
+varimp <- varimp[1:9,]
+
+plot2 <- featurePlot(x=trainset[,varimp$feats],
+            y=trainset$classe,
+            plot = "density",
+            scales = list(x = list(relation="free"),
+                          y = list(relation="free")),
+            adjust = 1.5,
+            pch = "|",
+            layout = c(3,3),
+            auto.key=list(columns=3))
+plot2
+```
+
+**Figure 3** Top 9 predictors by randomForest plotted against the classes
+
+By visual inspection, we can see that each of these random Forest chosen predictors separates roughly only one of the classes.  
+  
+  
+  
+## Prediction of the Test Set
+
+Fofr the prediction of the test set we will use the final model generated (rfModel$finalModel), which had an OOB estimate of error rate of 0.43%.
+
+```{r}
+rfModel$finalModel
+```
+
+
+```{r}
+answers<-data.frame(cbind(testset$problem_id, 
+                          as.character(predict(rfModel$finalModel, testset)),
+                          as.character(predict(gbmModel, testset))))
+names(answers)<- c("problem_id", "predicted-RF","predicted-GBM")
+answers
+````
+
+
+In the end, both models predicted the same answer.
+The answers were then split into individual files for submission
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(as.character(predict(rfModel$finalModel, testset)))
+```
+
+## Conclusion
+
+Using the random Forest and generalized boosted regression modeling we were able to predict the manner in which exercises were performed in the test set. The 5-fold cross-validated error estimates were **`r round(gbmModel$results[nrow(gbmModel$results),"Accuracy"]*100,1)`**% for **GBM** and **`r round(rfModel$results[nrow(rfModel$results),"Accuracy"]*100,1)`**% for **Random Forest**. The overall correct were 20/20 following submission.
+
+```{r}
